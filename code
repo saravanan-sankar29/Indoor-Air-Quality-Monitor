@@ -1,0 +1,150 @@
+/**
+ * @file Indoor_Air_Quality_Monitor.ino
+ * @author Saravanan S
+ * @brief IoT Indoor Air Quality Monitor for Hospital Environments using ESP32, DHT11, MQ135, and Blynk IoT.
+ * @version 1.0
+ * * Hardware Connections:
+ * - DHT11: Data Pin -> GPIO 2
+ * - MQ135 (Gas Sensor): Analog Output -> GPIO 32
+ * - 16x2 LCD Display (I2C): SDA -> GPIO 21, SCL -> GPIO 22
+ */
+
+#include <dummy.h>
+
+// Blynk Cloud Configuration
+#define BLYNK_TEMPLATE_ID "TMPL32SDThmST"
+#define BLYNK_TEMPLATE_NAME "Air Quality Monitor"
+#define BLYNK_AUTH_TOKEN "YaCPJjpUYybTTq50yi2rgN79i7AfWFq9"
+#define BLYNK_PRINT Serial
+
+// Required Libraries
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+#include <DHT.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// Initialize LCD object (I2C Address: 0x27, 16 Columns, 2 Rows)
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// Network Credentials
+char auth[] = BLYNK_AUTH_TOKEN;
+char ssid[] = "Galaxy M55 5G 4408";
+char pass[] = "ranga123";
+
+BlynkTimer timer;
+
+// Sensor Pin Configurations
+int gas = 32;
+int sensorThreshold = 100;
+#define DHTPIN 2
+#define DHTTYPE DHT11
+
+// Initialize DHT Sensor
+DHT dht(DHTPIN, DHTTYPE);
+
+/**
+ * @brief Reads data from DHT11 and MQ135 sensors and pushes the telemetry to Blynk Cloud
+ */
+void sendSensor() {
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
+    
+    // Check if sensor reading failed
+    if (isnan(h) || isnan(t)) {
+        Serial.println("Failed to read from DHT sensor!");
+        return;
+    }
+    
+    int analogSensor = analogRead(gas);
+    
+    // Write telemetry data to Blynk Virtual Pins
+    Blynk.virtualWrite(V2, analogSensor);
+    Blynk.virtualWrite(V0, t);
+    Blynk.virtualWrite(V1, h);
+    
+    // Serial Monitor Diagnostics
+    Serial.print("Gas Value: ");
+    Serial.println(analogSensor);
+    Serial.print("Temperature : ");
+    Serial.print(t);
+    Serial.print("    Humidity : ");
+    Serial.println(h);
+}
+
+void setup() {
+    // Initialize I2C Communication pins (SDA, SCL)
+    Wire.begin(21, 22);  
+    
+    lcd.init();
+    Serial.begin(115200);
+    
+    // Initialize Blynk and DHT Sensor
+    Blynk.begin(auth, ssid, pass);
+    dht.begin();
+    
+    // Setup a timer to call sendSensor() every 30 seconds (30000 milliseconds)
+    timer.setInterval(30000L, sendSensor);
+    
+    // Welcome Screen Dashboard
+    lcd.backlight();
+    lcd.setCursor(3, 0);
+    lcd.print("Air Quality");
+    lcd.setCursor(3, 1);
+    lcd.print("Monitoring");
+    delay(2000);
+    lcd.clear();
+}
+
+void loop() {
+    Blynk.run();
+    timer.run();
+    
+    // Local processing loop for real-time sensor updates
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
+    int gasValue = analogRead(gas);
+    
+    // Display Temperature data
+    lcd.setCursor(0, 0);
+    lcd.print("Temperature ");
+    lcd.setCursor(0, 1);
+    lcd.print(t);
+    lcd.setCursor(6, 1);
+    lcd.print(" "); 
+    lcd.setCursor(7, 1);
+    lcd.print("C");
+    delay(4000);
+    lcd.clear();
+    
+    // Display Humidity data
+    lcd.setCursor(0, 0);
+    lcd.print("Humidity ");
+    lcd.print(h);
+    lcd.print("%");
+    delay(4000);
+    lcd.clear();
+    
+    // Serial logging for Gas Value
+    Serial.println("Gas Value");
+    Serial.println(gasValue);
+    
+    // Display Gas Value and threshold response
+    lcd.setCursor(0, 0);
+    lcd.print("Gas Value: ");
+    lcd.print(gasValue);
+    lcd.setCursor(0, 1);
+    
+    if (gasValue < 1200) {
+        lcd.print("Fresh Air");
+        Serial.println("Fresh Air");
+    } else {
+        lcd.print("Bad Air");
+        Serial.println("Bad Air");
+        // Trigger emergency notification log to Blynk App
+        Blynk.logEvent("pollution_alert", "Bad Air");
+    }
+    
+    delay(4000);
+    lcd.clear();
+}

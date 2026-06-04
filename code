@@ -30,7 +30,7 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 // Network Credentials
 char auth[] = BLYNK_AUTH_TOKEN;
 char ssid[] = "Galaxy M55 5G 4408";
-char pass[] = "ranga123";
+char pass[] = "sara123";
 
 BlynkTimer timer;
 
